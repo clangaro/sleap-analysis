@@ -1,0 +1,20 @@
+[project]
+name = "sleap-analysis"
+version = "0.1.0"
+description = "Trajectory cleaning and Barnes maze / novel object recognition metrics from SLEAP nose and tail predictions."
+authors = [{name = "Carolina Langaro"}]
+requires-python = ">=3.9"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+extend-exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint.isort]
+known-first-party = ["slp_io", "trajectory"]

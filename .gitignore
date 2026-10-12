@@ -1,0 +1,33 @@
+# videos, predictions and model weights
+*.slp
+*.mp4
+*.avi
+*.mov
+*.h5
+*.ckpt
+*.npz
+model/
+
+# cohort data and pipeline outputs
+data/*
+!data/README.md
+results/
+*.csv
+
+# per-cohort geometry, which records local video paths
+configs/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+
+# editors and OS
+.idea/
+.vscode/
+.DS_Store
+.ipynb_checkpoints/
+*.log
+.env
