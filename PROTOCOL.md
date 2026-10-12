@@ -1,14 +1,10 @@
 # SLEAP analysis pipeline (Windows)
 
-  uv tool run --from "sleap[nn]" python -c "import sleap;
-  print(sleap.__version__)"
-  uv tool list 
-
 This protocol cover the whole pipeline for sleap analysis. If you are already within the UI, you can jump to section 3, which will tell you how the analysis works.
 
  Setup is already done on this machine. Follow the sections below to add a cohort and run the pipeline. Anything in a grey box is a command — copy/paste it into PowerShell.
 
-> **Note.** This pipeline consumes `.predictions.slp` files that inference (`sleap-track`) produces automatically. You do **not** need SLEAP's GUI (`sleap-label`) to use this pipeline — the GUI is only required if you want to label training data or train a new model.
+> **Note.** This pipeline consumes `.predictions.slp` files that inference produces automatically: when you click **Run full pipeline** with **Run inference on videos missing predictions** ticked (the default), `scripts/run_pipeline.py` first calls `scripts/run_inference.py` for any video that does not yet have predictions. That script runs the bundled model directly in Python; it does not use `sleap-track`. You do **not** need SLEAP's GUI (`sleap-label`) to use this pipeline — the GUI is only required if you want to label training data or train a new model.
 
 ---
 
