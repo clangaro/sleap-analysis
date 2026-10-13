@@ -1,6 +1,6 @@
 # sleap-analysis
 
-Behavioural metrics for rats in the Barnes maze and the novel object recognition (NOR) test, computed from SLEAP pose estimates of the nose and the tail.
+Behavioural metrics for mice in the Barnes maze and the novel object recognition (NOR) test, computed from SLEAP pose estimates of the nose and the tail.
 
 SLEAP gives a nose and a tail position for every video frame. This repository turns those predictions into per-video behavioural measures: latency to the target hole, time at the target and target-quadrant occupancy for the Barnes maze, and exploration times and a discrimination index for NOR. It also cleans the trajectories first and flags videos whose tracking is unreliable. A Streamlit interface lets lab members without coding experience run the whole pipeline.
 
@@ -18,7 +18,7 @@ Videos, predictions and the trained model are not included. The model weights ar
 4. **Barnes metrics** (`scripts/barnes_metrics.py`). The maze centre and target hole are clicked once per cohort. The nose is "at the target" when it is within 12% of the centre-to-target distance of the target hole. The target quadrant is the 90° sector centred on the target, measured around the maze centre.
 5. **NOR metrics** (`scripts/nor_metrics.py`). The two object positions are clicked once per cohort, and the side of the novel object is recorded for each test video. A frame counts as investigation when the nose is within 80 px of an object and the tail-to-nose vector points within 90° of it. The discrimination index is (T_novel − T_familiar) / (T_novel + T_familiar).
 
-`scripts/run_pipeline.py` runs steps 1-5 in order, deciding whether each video is Barnes or NOR from its folder name. All thresholds are command-line options. The defaults were chosen for this set-up: a rat is roughly 50-100 px long in these videos, so nose and tail closer than 15 px means the model has lost them; 30 px per frame (about 900 px/s) is well above normal rat locomotion; and the Barnes target radius is roughly one hole diameter plus a small margin.
+`scripts/run_pipeline.py` runs steps 1-5 in order, deciding whether each video is Barnes or NOR from its folder name. All thresholds are command-line options. The defaults were chosen for this set-up: a mouse is roughly 50-100 px long in these videos, so nose and tail closer than 15 px means the model has lost them; 30 px per frame (about 900 px/s) is well above normal mouse locomotion; and the Barnes target radius is roughly one hole diameter plus a small margin.
 
 `scripts/compare_to_truth.py` measures model accuracy on frames that were hand-labelled blind to the predictions, so that accuracy is measured on videos the model has not seen.
 

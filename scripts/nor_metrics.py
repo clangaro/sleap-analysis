@@ -8,7 +8,7 @@ NOR has two phases. Both share the same two object positions, set per cohort:
     no side bias) plus locomotor activity.
 
   - "test" phase (videos with '_novel' in the name): one familiar + one novel.
-    Sides vary per rat, so a per-video sidecar tells us which side is novel.
+    Sides vary per mouse, so a per-video sidecar tells us which side is novel.
     We report time at novel, time at familiar, discrimination index, etc.
 
 Inputs:

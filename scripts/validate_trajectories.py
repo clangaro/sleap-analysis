@@ -4,7 +4,7 @@ Sanity-check filter_and_interpolate trajectories with biological plausibility me
 For each trajectory CSV produced by filter_and_interpolate.py under --results-root:
   1. Compute frame-to-frame Euclidean distance (pixel speed) for nose and tail.
   2. Flag frames where speed exceeds --max-speed (default 30 px/frame).
-     At 30 fps a rat moving 30 px/frame is roughly 900 px/sec — well above
+     At 30 fps a mouse moving 30 px/frame is roughly 900 px/sec — well above
      normal locomotion. Sustained higher values are almost always model errors.
   3. Compute per-video LONGEST consecutive run of status=="missing" (post-
      interpolation, so a "missing" frame here means a gap that was too long

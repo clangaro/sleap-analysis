@@ -6,7 +6,7 @@ For each .predictions.slp file under --pred-root:
   2. Drop predictions where nose and tail collapsed to the same point
      (Euclidean distance below --collapse-thresh pixels).
   3. Linearly interpolate gaps no longer than --max-gap frames.
-  4. Leave longer gaps as NaN (rat genuinely off-arena / off-camera).
+  4. Leave longer gaps as NaN (mouse genuinely off-arena / off-camera).
   5. Write one CSV per video to --out-dir with columns
      frame, nose_x, nose_y, nose_score, tail_x, tail_y, tail_score,
      nose_status, tail_status
