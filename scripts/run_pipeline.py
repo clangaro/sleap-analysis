@@ -17,8 +17,14 @@ NOR scene JSON lookup tries, in order:
   --nor-scene-dir/<video>.scene.json
   --nor-scene-dir/<video_subdir>/<video>.scene.json
 
-Videos that have no scene JSON (NOR) or no geometry passed (Barnes) are
-skipped from the metrics step and listed at the end. The trajectory CSVs
+Frames are converted to seconds with each video's own frame rate, read
+with ffprobe in step 1 and stored in summary.csv. Pass --fps to use one
+frame rate for every video instead. The video path stored in each .slp is
+used when it exists on this machine; otherwise the video is looked up by
+file name under --videos-root.
+
+Videos that have no scene JSON (NOR), no geometry passed (Barnes) or no
+frame rate are skipped from the metrics step and listed at the end. The trajectory CSVs
 and validation flags are still produced for them.
 
 Usage:
@@ -35,6 +41,7 @@ overwrite existing prediction files.
 """
 
 import argparse
+import csv
 import os
 import subprocess
 import sys
@@ -105,7 +112,13 @@ def main():
         help='Folder containing per-video <name>.scene.json files for '
         "test-phase NOR videos. Familiar-phase videos don't need a sidecar.",
     )
-    p.add_argument('--fps', type=float, default=30.0)
+    p.add_argument(
+        '--fps',
+        type=float,
+        default=None,
+        help="Frame rate to use for every video. Default: read each video's own "
+        'frame rate (ffprobe avg_frame_rate).',
+    )
     p.add_argument(
         '--max-gap', type=int, default=30, help='Pass-through to filter_and_interpolate.'
     )
@@ -124,7 +137,7 @@ def main():
         default=5.0,
         help='Pass-through to validate_trajectories: flag videos where BOTH nose '
         'and tail have a consecutive missing-frame run longer than this '
-        '(in seconds, using --fps for the conversion).',
+        "(in seconds, using each video's frame rate for the conversion).",
     )
     args = p.parse_args()
 
@@ -192,22 +205,23 @@ def main():
     print('=' * 70)
     print('Step 1/3: filter_and_interpolate')
     print('=' * 70)
-    r = subprocess.run(
-        [
-            py,
-            str(scripts / 'filter_and_interpolate.py'),
-            '--pred-root',
-            str(pred_root),
-            '--out-dir',
-            str(results_root),
-            '--max-gap',
-            str(args.max_gap),
-            '--collapse-thresh',
-            str(args.collapse_thresh),
-            '--require-any',
-            ','.join(RECOGNIZED_SUBSTRINGS),
-        ]
-    )
+    cmd = [
+        py,
+        str(scripts / 'filter_and_interpolate.py'),
+        '--pred-root',
+        str(pred_root),
+        '--out-dir',
+        str(results_root),
+        '--max-gap',
+        str(args.max_gap),
+        '--collapse-thresh',
+        str(args.collapse_thresh),
+        '--require-any',
+        ','.join(RECOGNIZED_SUBSTRINGS),
+    ]
+    if videos_root is not None:
+        cmd += ['--videos-root', str(videos_root)]
+    r = subprocess.run(cmd)
     if r.returncode != 0:
         sys.stderr.write('filter_and_interpolate failed; aborting.\n')
         sys.exit(1)
@@ -216,20 +230,19 @@ def main():
     print('\n' + '=' * 70)
     print('Step 2/3: validate_trajectories')
     print('=' * 70)
-    r = subprocess.run(
-        [
-            py,
-            str(scripts / 'validate_trajectories.py'),
-            '--results-root',
-            str(results_root),
-            '--max-speed',
-            str(args.max_speed),
-            '--max-gap-seconds',
-            str(args.max_gap_seconds),
-            '--fps',
-            str(args.fps),
-        ]
-    )
+    cmd = [
+        py,
+        str(scripts / 'validate_trajectories.py'),
+        '--results-root',
+        str(results_root),
+        '--max-speed',
+        str(args.max_speed),
+        '--max-gap-seconds',
+        str(args.max_gap_seconds),
+    ]
+    if args.fps is not None:
+        cmd += ['--fps', str(args.fps)]
+    r = subprocess.run(cmd)
     if r.returncode != 0:
         sys.stderr.write('validate_trajectories failed; aborting.\n')
         sys.exit(1)
@@ -242,6 +255,20 @@ def main():
     nor_dir = Path(args.nor_scene_dir).resolve() if args.nor_scene_dir else None
     geometry_path = Path(args.barnes_geometry).resolve() if args.barnes_geometry else None
     nor_geometry = Path(args.nor_geometry).resolve() if args.nor_geometry else None
+
+    # Video path per trajectory, recorded by filter_and_interpolate.py. Each
+    # metrics script reads the frame rate from the video itself.
+    video_by_trajectory = {}
+    with open(results_root / 'summary.csv') as f:
+        for row in csv.DictReader(f):
+            if row.get('trajectory') and row.get('fps'):
+                video_by_trajectory[row['trajectory']] = row['video_path']
+
+    def fps_args(rel):
+        if args.fps is not None:
+            return ['--fps', str(args.fps)]
+        video = video_by_trajectory.get(rel)
+        return ['--video', video] if video else None
 
     skipped = []
     processed_barnes = 0
@@ -265,6 +292,13 @@ def main():
             if category:
                 break
         video_name = csv_path.stem
+        rel = csv_path.relative_to(results_root).as_posix()
+        frame_rate = fps_args(rel)
+        if category in RECOGNIZED_SUBSTRINGS and frame_rate is None:
+            skipped.append(
+                (category, rel, 'no frame rate (video not found; pass --videos-root or --fps)')
+            )
+            continue
 
         if category == 'barnes':
             if not geometry_path:
@@ -280,9 +314,8 @@ def main():
                     str(csv_path),
                     '--geometry',
                     str(geometry_path),
-                    '--fps',
-                    str(args.fps),
                 ]
+                + frame_rate
             )
             if r.returncode == 0:
                 processed_barnes += 1
@@ -305,9 +338,7 @@ def main():
                 str(csv_path),
                 '--cohort-geometry',
                 str(nor_geometry),
-                '--fps',
-                str(args.fps),
-            ]
+            ] + frame_rate
             if is_test:
                 if nor_dir is None:
                     skipped.append(

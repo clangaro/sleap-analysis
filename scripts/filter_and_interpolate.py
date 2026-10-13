@@ -13,15 +13,22 @@ For each .predictions.slp file under --pred-root:
      where each status is one of: ok / interpolated / missing.
 
 A summary CSV with per-video counts is written to <out-dir>/summary.csv.
+It also records, for each trajectory, the video the predictions were made
+from and that video's frame rate (ffprobe avg_frame_rate). The validation and
+metrics steps read the frame rate from there unless --fps is given.
 
 Usage:
     python filter_and_interpolate.py --pred-root PATH [--out-dir PATH]
                                       [--max-gap N] [--collapse-thresh PX]
                                       [--require-any barnes,nor]
+                                      [--videos-root PATH]
 
 Pass --require-any to restrict processing to videos whose ancestor folder
 names contain at least one of the given case-insensitive substrings. Videos
 in unrecognized folders keep their .predictions.slp but no CSV is written.
+
+The video path stored in each .slp is used when it exists on this machine.
+Otherwise pass --videos-root and the video is looked up there by file name.
 """
 
 import argparse
@@ -33,19 +40,22 @@ from pathlib import Path
 import numpy as np
 
 from slp_io import load_slp
+from video_meta import find_video, probe_fps
 
 DEFAULT_OUT_DIR = str(Path(__file__).resolve().parent.parent / 'results')
 
 
 def extract_nose_tail(slp_path):
-    """Return (n_frames, nose, tail) where nose and tail are float arrays of shape (n, 3).
+    """Return (n_frames, nose, tail, video_path) for one .slp file.
 
-    Columns: x, y, score. Rows are indexed by frame_idx (0..max_frame_idx).
-    Missing predictions are NaN.
+    nose and tail are float arrays of shape (n, 3) with columns x, y, score.
+    Rows are indexed by frame_idx (0..max_frame_idx); missing predictions are
+    NaN. video_path is the video filename stored in the .slp ('' if none).
     """
     labels = load_slp(str(slp_path))
+    video_path = labels.videos[0].filename if labels.videos else ''
     if not labels.labeled_frames:
-        return 0, np.empty((0, 3)), np.empty((0, 3))
+        return 0, np.empty((0, 3)), np.empty((0, 3)), video_path
 
     max_idx = max(lf.frame_idx for lf in labels.labeled_frames)
     n = max_idx + 1
@@ -66,7 +76,7 @@ def extract_nose_tail(slp_path):
             arr[lf.frame_idx, 0] = pt.x
             arr[lf.frame_idx, 1] = pt.y
             arr[lf.frame_idx, 2] = pt.score if pt.score is not None else np.nan
-    return n, nose, tail
+    return n, nose, tail, video_path
 
 
 def filter_collapsed(nose, tail, collapse_thresh):
@@ -113,7 +123,7 @@ def interpolate_with_max_gap(values, max_gap):
 
 def process_slp(slp_path, out_csv_path, max_gap, collapse_thresh):
     """Process one .predictions.slp file. Returns dict of per-video stats."""
-    n, nose, tail = extract_nose_tail(slp_path)
+    n, nose, tail, video_path = extract_nose_tail(slp_path)
     if n == 0:
         return {
             'video': slp_path.stem.replace('.predictions', ''),
@@ -123,6 +133,7 @@ def process_slp(slp_path, out_csv_path, max_gap, collapse_thresh):
             'tail_interpolated': 0,
             'nose_missing_after': 0,
             'tail_missing_after': 0,
+            'video_path': video_path,
         }
 
     collapsed_count = filter_collapsed(nose, tail, collapse_thresh)
@@ -184,6 +195,7 @@ def process_slp(slp_path, out_csv_path, max_gap, collapse_thresh):
         'tail_interpolated': n_tail_x_interp,
         'nose_missing_after': int(np.isnan(nose_x_filled).sum()),
         'tail_missing_after': int(np.isnan(tail_x_filled).sum()),
+        'video_path': video_path,
     }
 
 
@@ -225,6 +237,12 @@ def main():
         'folder name (relative to --pred-root) contains one of these. '
         'Videos in unrecognized folders are skipped without writing a CSV.',
     )
+    parser.add_argument(
+        '--videos-root',
+        default=None,
+        help='Folder to search for each video by file name when the path stored '
+        'in the .slp does not exist on this machine. Used to read the frame rate.',
+    )
     args = parser.parse_args()
 
     pred_root = Path(args.pred_root)
@@ -263,12 +281,26 @@ def main():
     print()
 
     summary_rows = []
+    no_fps = []
     for i, slp in enumerate(slp_files, 1):
         rel = slp.relative_to(pred_root).with_suffix('')  # strips .slp
         rel = rel.with_suffix('')  # strips .predictions
         out_csv = out_dir / f'{rel}.csv'
         stats = process_slp(slp, out_csv, args.max_gap, args.collapse_thresh)
+        stats['trajectory'] = f'{rel.as_posix()}.csv'
+        stored = stats['video_path']
+        video = find_video(stored, args.videos_root)
+        stats['video_path'] = str(video) if video else ''
+        stats['fps'] = ''
+        if video is None:
+            no_fps.append(f'{rel}: video not found (stored path: {stored or "none"})')
+        else:
+            try:
+                stats['fps'] = repr(probe_fps(video))
+            except RuntimeError as e:
+                no_fps.append(f'{rel}: {e}')
         summary_rows.append(stats)
+        fps_text = f'{float(stats["fps"]):.3f}' if stats['fps'] else 'unknown'
         print(
             f'[{i:>2}/{len(slp_files)}] {rel}: '
             f'frames={stats["n_frames"]:>6} '
@@ -276,7 +308,8 @@ def main():
             f'nose_interp={stats["nose_interpolated"]:>5} '
             f'tail_interp={stats["tail_interpolated"]:>5} '
             f'nose_missing={stats["nose_missing_after"]:>5} '
-            f'tail_missing={stats["tail_missing_after"]:>5}'
+            f'tail_missing={stats["tail_missing_after"]:>5} '
+            f'fps={fps_text}'
         )
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -285,6 +318,13 @@ def main():
         w.writeheader()
         w.writerows(summary_rows)
     print(f'\nSummary written to {out_dir}/summary.csv')
+    if no_fps:
+        print(
+            f'\nWARNING: no frame rate for {len(no_fps)} video(s). Later steps need '
+            f'--fps for these, or --videos-root so the videos can be found:'
+        )
+        for line in no_fps:
+            print(f'  - {line}')
 
 
 if __name__ == '__main__':

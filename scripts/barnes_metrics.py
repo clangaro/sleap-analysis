@@ -22,9 +22,12 @@ distance. Geometry files in the older schema (radius_px + n_holes) default to
 Quadrants: 4 equal angular sectors centred on the target (so target is
 in the middle of the target quadrant, +/- 45 deg).
 
+Frames are converted to seconds with the frame rate of the video the
+trajectory came from (--video, read with ffprobe), or with --fps if given.
+
 Usage:
     python barnes_metrics.py --trajectory PATH.csv --geometry PATH.json \
-                             [--fps 30] [--target-radius PX]
+                             --video PATH.mp4 [--fps F] [--target-radius PX]
 """
 
 import argparse
@@ -35,6 +38,7 @@ import sys
 from pathlib import Path
 
 from trajectory import angle_clockwise_from_vertical, nose_path_length, parse_coord
+from video_meta import fps_from_args
 
 
 def load_trajectory(path):
@@ -128,10 +132,16 @@ def main():
         '--geometry', required=True, help='Cohort geometry JSON from annotate_barnes_geometry.py.'
     )
     p.add_argument(
+        '--video',
+        default=None,
+        help='Video the trajectory came from. Its frame rate (ffprobe '
+        'avg_frame_rate) is used to convert frames to seconds.',
+    )
+    p.add_argument(
         '--fps',
         type=float,
-        default=30.0,
-        help='Video frame rate, for converting frames to seconds.',
+        default=None,
+        help='Frame rate to use instead of reading it from --video.',
     )
     p.add_argument(
         '--target-radius',
@@ -146,6 +156,7 @@ def main():
     )
     args = p.parse_args()
 
+    fps, fps_source = fps_from_args(args.fps, args.video)
     rows = load_trajectory(args.trajectory)
     with open(args.geometry) as f:
         geom = json.load(f)
@@ -170,9 +181,10 @@ def main():
     else:
         target_radius_px = args.target_radius
 
-    metrics = compute_metrics(rows, geom, target_radius_px, args.fps)
+    metrics = compute_metrics(rows, geom, target_radius_px, fps)
     metrics['target_radius_px_used'] = target_radius_px
-    metrics['fps_used'] = args.fps
+    metrics['fps_used'] = fps
+    metrics['fps_source'] = fps_source
     metrics['video'] = Path(args.trajectory).stem
     metrics['cohort'] = geom.get('cohort')
     metrics['target_hole_index'] = geom.get('target_hole_index')

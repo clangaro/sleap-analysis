@@ -8,13 +8,18 @@ For each trajectory CSV produced by filter_and_interpolate.py under --results-ro
      normal locomotion. Sustained higher values are almost always model errors.
   3. Compute per-video LONGEST consecutive run of status=="missing" (post-
      interpolation, so a "missing" frame here means a gap that was too long
-     for filter_and_interpolate.py to fill). Convert to seconds via --fps
-     and set high_missingness=1 when BOTH nose and tail longest gaps exceed
+     for filter_and_interpolate.py to fill). Convert to seconds using each
+     video's frame rate (the fps column of summary.csv, written by
+     filter_and_interpolate.py, or --fps for all videos) and set
+     high_missingness=1 when BOTH nose and tail longest gaps exceed
      --max-gap-seconds. See process() for the rationale behind AND vs OR
      and behind gap-length vs global-fraction.
   4. Write:
        - <video>_validation.csv (per-frame speed flags)
        - validation_summary.csv (one row per video, incl. gap columns)
+
+Videos with no frame rate in summary.csv are skipped and listed, unless
+--fps is given.
 
 Nothing here modifies the trajectory CSVs from filter_and_interpolate.py —
 this script is diagnostic-only. Downstream metrics scripts read the raw
@@ -223,6 +228,7 @@ def process(csv_path, out_csv_path, max_speed, max_gap_frames, fps):
         'tail_longest_gap_frames': tail_longest_gap_frames,
         'tail_longest_gap_sec': _fmt(tail_longest_gap_sec),
         'high_missingness': int(high_missingness),
+        'fps_used': fps,
     }
 
 
@@ -262,9 +268,9 @@ def main():
     parser.add_argument(
         '--fps',
         type=float,
-        default=30.0,
-        help='Frame rate used to convert --max-gap-seconds into a frame count. '
-        'Should match the fps passed to the metrics scripts.',
+        default=None,
+        help='Frame rate used for every video to convert --max-gap-seconds into a '
+        "frame count. Default: each video's own frame rate from summary.csv.",
     )
     args = parser.parse_args()
 
@@ -282,24 +288,54 @@ def main():
         print(f'No trajectory CSVs found under {root}', file=sys.stderr)
         sys.exit(1)
 
+    fps_by_trajectory = {}
+    if args.fps is None:
+        summary_csv = root / 'summary.csv'
+        if summary_csv.exists():
+            with open(summary_csv) as f:
+                for r in csv.DictReader(f):
+                    if r.get('trajectory') and r.get('fps'):
+                        fps_by_trajectory[r['trajectory']] = float(r['fps'])
+
     print(f'Found {len(csv_files)} trajectory CSVs under {root}')
     print(f'Flagging speed > {args.max_speed} px/frame')
+    if args.fps is None:
+        print('Frame rate: per video, from summary.csv')
+    else:
+        print(f'Frame rate: {args.fps} fps for every video (--fps)')
     print()
 
     summary_rows = []
+    no_fps = []
     for i, csv_path in enumerate(csv_files, 1):
         rel = csv_path.relative_to(root)
         out_csv = root / rel.with_name(rel.stem + '_validation.csv')
-        max_gap_frames = int(round(args.max_gap_seconds * args.fps))
-        stats = process(csv_path, out_csv, args.max_speed, max_gap_frames, args.fps)
+        fps = args.fps if args.fps is not None else fps_by_trajectory.get(rel.as_posix())
+        if fps is None:
+            no_fps.append(rel)
+            continue
+        max_gap_frames = int(round(args.max_gap_seconds * fps))
+        stats = process(csv_path, out_csv, args.max_speed, max_gap_frames, fps)
         summary_rows.append(stats)
         print(
             f'[{i:>2}/{len(csv_files)}] {rel.with_suffix("")}: '
             f'nose mean={stats["nose_mean_px"]} px, '
             f'p99={stats["nose_p99_px"]} px, '
             f'max={stats["nose_max_px"]} px, '
-            f'suspicious={stats["nose_n_suspicious"]} ({stats["nose_pct_suspicious"]}%)'
+            f'suspicious={stats["nose_n_suspicious"]} ({stats["nose_pct_suspicious"]}%), '
+            f'fps={fps:.3f}'
         )
+
+    if no_fps:
+        print(
+            f'\nSkipped {len(no_fps)} trajectory CSV(s) with no frame rate in summary.csv '
+            f'(rerun filter_and_interpolate.py with --videos-root, or pass --fps):'
+        )
+        for rel in no_fps:
+            print(f'  - {rel}')
+    if not summary_rows:
+        print('No trajectory CSVs could be validated.', file=sys.stderr)
+        sys.exit(1)
 
     summary_path = root / 'validation_summary.csv'
     with open(summary_path, 'w', newline='') as f:

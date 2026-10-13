@@ -23,13 +23,16 @@ Inputs:
                   AND the head-vector (tail->nose) is pointing towards the object
                   (cosine similarity >= --orientation-threshold, default 0.0 = within 90 deg).
 
+Frames are converted to seconds with the frame rate of the video the
+trajectory came from (--video, read with ffprobe), or with --fps if given.
+
 Usage:
     # Familiar phase
-    python nor_metrics.py --trajectory PATH.csv \\
+    python nor_metrics.py --trajectory PATH.csv --video PATH.mp4 \\
                           --cohort-geometry configs/cohort_11_nor_geometry.json
 
     # Test phase
-    python nor_metrics.py --trajectory PATH.csv \\
+    python nor_metrics.py --trajectory PATH.csv --video PATH.mp4 \\
                           --cohort-geometry configs/cohort_11_nor_geometry.json \\
                           --scene 110_novel.scene.json
 """
@@ -42,6 +45,7 @@ import sys
 from pathlib import Path
 
 from trajectory import nose_path_length, parse_coord
+from video_meta import fps_from_args
 
 
 def load_trajectory(path):
@@ -111,7 +115,18 @@ def main():
         help="Per-video sidecar with 'novel_side'. Required for test-phase videos, "
         'omitted for familiar-phase ones.',
     )
-    p.add_argument('--fps', type=float, default=30.0, help='Video frame rate.')
+    p.add_argument(
+        '--video',
+        default=None,
+        help='Video the trajectory came from. Its frame rate (ffprobe '
+        'avg_frame_rate) is used to convert frames to seconds.',
+    )
+    p.add_argument(
+        '--fps',
+        type=float,
+        default=None,
+        help='Frame rate to use instead of reading it from --video.',
+    )
     p.add_argument(
         '--object-radius',
         type=float,
@@ -131,6 +146,7 @@ def main():
     )
     args = p.parse_args()
 
+    fps, fps_source = fps_from_args(args.fps, args.video)
     rows = load_trajectory(args.trajectory)
     with open(args.cohort_geometry) as f:
         cohort = json.load(f)
@@ -140,8 +156,8 @@ def main():
     left_flags = investigating(rows, lx, ly, args.object_radius, args.orientation_threshold)
     right_flags = investigating(rows, rx, ry, args.object_radius, args.orientation_threshold)
 
-    t_left = sum(left_flags) / args.fps
-    t_right = sum(right_flags) / args.fps
+    t_left = sum(left_flags) / fps
+    t_right = sum(right_flags) / fps
     plen, n_speed = nose_path_length(rows)
 
     common = {
@@ -151,7 +167,8 @@ def main():
         'mean_speed_px_per_frame': (plen / n_speed) if n_speed else None,
         'object_radius_px_used': args.object_radius,
         'orientation_threshold_used': args.orientation_threshold,
-        'fps_used': args.fps,
+        'fps_used': fps,
+        'fps_source': fps_source,
     }
 
     if args.scene:
@@ -167,8 +184,8 @@ def main():
         else:
             novel_flags, familiar_flags = right_flags, left_flags
 
-        t_nov = sum(novel_flags) / args.fps
-        t_fam = sum(familiar_flags) / args.fps
+        t_nov = sum(novel_flags) / fps
+        t_fam = sum(familiar_flags) / fps
         total = t_nov + t_fam
         di = (t_nov - t_fam) / total if total > 0 else None
 
@@ -187,10 +204,8 @@ def main():
             'discrimination_index': di,
             'first_approach_familiar_frame': first_fam,
             'first_approach_novel_frame': first_nov,
-            'first_approach_familiar_sec': (first_fam / args.fps)
-            if first_fam is not None
-            else None,
-            'first_approach_novel_sec': (first_nov / args.fps) if first_nov is not None else None,
+            'first_approach_familiar_sec': (first_fam / fps) if first_fam is not None else None,
+            'first_approach_novel_sec': (first_nov / fps) if first_nov is not None else None,
         }
     else:
         # familiar phase
@@ -210,10 +225,8 @@ def main():
             'left_right_bias': bias,
             'first_approach_left_frame': first_left,
             'first_approach_right_frame': first_right,
-            'first_approach_left_sec': (first_left / args.fps) if first_left is not None else None,
-            'first_approach_right_sec': (first_right / args.fps)
-            if first_right is not None
-            else None,
+            'first_approach_left_sec': (first_left / fps) if first_left is not None else None,
+            'first_approach_right_sec': (first_right / fps) if first_right is not None else None,
         }
 
     metrics.update(common)

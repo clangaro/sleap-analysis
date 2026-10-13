@@ -6,7 +6,7 @@ SLEAP gives a nose and a tail position for every video frame. This repository tu
 
 ## Data
 
-**Animals and set-up.** Data come from 5 PER2::LUC mice, a circadian reporter line, recorded in the Kriegsfeld Lab at UC Berkeley. Behaviour was filmed from above in a Barnes maze and a novel object recognition arena at 30 frames per second, and body parts were tracked with SLEAP using a model trained on 302 labelled frames.
+**Animals and set-up.** Data come from 5 PER2::LUC mice, a circadian reporter line, recorded in the Kriegsfeld Lab at UC Berkeley. Behaviour was filmed from above in a Barnes maze and a novel object recognition arena. The frame rate is read from each video and ranged from 22 to 30 frames per second across these recordings. Body parts were tracked with SLEAP using a model trained on 302 labelled frames.
 
 Videos, predictions and the trained model are not included. The model weights are available on request.
 
@@ -18,7 +18,7 @@ Videos, predictions and the trained model are not included. The model weights ar
 4. **Barnes metrics** (`scripts/barnes_metrics.py`). The maze centre and target hole are clicked once per cohort. The nose is "at the target" when it is within 12% of the centre-to-target distance of the target hole. The target quadrant is the 90° sector centred on the target, measured around the maze centre.
 5. **NOR metrics** (`scripts/nor_metrics.py`). The two object positions are clicked once per cohort, and the side of the novel object is recorded for each test video. A frame counts as investigation when the nose is within 80 px of an object and the tail-to-nose vector points within 90° of it. The discrimination index is (T_novel − T_familiar) / (T_novel + T_familiar).
 
-`scripts/run_pipeline.py` runs steps 1-5 in order, deciding whether each video is Barnes or NOR from its folder name. All thresholds are command-line options. The defaults were chosen for this set-up: a mouse is roughly 50-100 px long in these videos, so nose and tail closer than 15 px means the model has lost them; 30 px per frame (about 900 px/s) is well above normal mouse locomotion; and the Barnes target radius is roughly one hole diameter plus a small margin.
+`scripts/run_pipeline.py` runs steps 1-5 in order, deciding whether each video is Barnes or NOR from its folder name. Frames are converted to seconds with each video's own frame rate, read from the video file with ffprobe (`avg_frame_rate`, the number of frames divided by the duration); `--fps` sets one frame rate for every video instead. All thresholds are command-line options. The defaults were chosen for this set-up: a mouse is roughly 50-100 px long in these videos, so nose and tail closer than 15 px means the model has lost them; 30 px per frame (about 900 px/s) is well above normal mouse locomotion; and the Barnes target radius is roughly one hole diameter plus a small margin.
 
 `scripts/compare_to_truth.py` measures model accuracy on frames that were hand-labelled blind to the predictions, so that accuracy is measured on videos the model has not seen.
 
@@ -37,7 +37,7 @@ The pipeline was run end to end on 16 prediction files from one cohort (6 Barnes
 
 ## How to run
 
-The scripts run inside a SLEAP environment (Python 3.9 with SLEAP 1.4.1 was used here). `env/sleap_windows_cpu.yml` creates a CPU-only conda environment on Windows.
+The scripts run inside a SLEAP environment (Python 3.9 with SLEAP 1.4.1 was used here). `env/sleap_windows_cpu.yml` creates a CPU-only conda environment on Windows. `ffprobe`, which comes with ffmpeg in that environment, must be on the path to read frame rates.
 
 ```bash
 conda activate sleap

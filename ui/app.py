@@ -329,7 +329,14 @@ if not Path(predictions_root).exists():
 
 st.sidebar.markdown('---')
 st.sidebar.markdown('### Pipeline parameters')
-fps = st.sidebar.number_input('FPS', value=30.0, step=1.0)
+fps_override = st.sidebar.checkbox(
+    'Set the frame rate by hand',
+    value=False,
+    help="By default each video's own frame rate is read from the video file. "
+    'Tick to use the value below for every video instead.',
+)
+fps = st.sidebar.number_input('FPS', value=30.0, step=1.0, disabled=not fps_override)
+fps_args = ['--fps', str(fps)] if fps_override else []
 max_gap = st.sidebar.number_input('Max gap (frames) for interpolation', value=30, step=5)
 collapse_thresh = st.sidebar.number_input('Collapse threshold (px)', value=15.0, step=1.0)
 max_speed = st.sidebar.number_input(
@@ -781,8 +788,7 @@ with tab3:
         str(RESULTS),
         '--cohort',
         cohort_dir.name,
-        '--fps',
-        str(fps),
+        *fps_args,
         '--max-gap',
         str(max_gap),
         '--collapse-thresh',
@@ -849,8 +855,7 @@ with tab3:
                 str(max_speed),
                 '--max-gap-seconds',
                 str(max_gap_seconds),
-                '--fps',
-                str(fps),
+                *fps_args,
             ],
             initial_label='Validating trajectories…',
             success_label='Validation complete',

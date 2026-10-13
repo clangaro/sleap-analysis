@@ -17,4 +17,4 @@ select = ["E", "F", "W", "I", "UP"]
 quote-style = "single"
 
 [tool.ruff.lint.isort]
-known-first-party = ["slp_io", "trajectory"]
+known-first-party = ["slp_io", "trajectory", "video_meta"]
