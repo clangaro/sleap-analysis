@@ -34,6 +34,7 @@ The pipeline was run end to end on 16 prediction files from one cohort (6 Barnes
 - The Barnes target zone and the NOR object positions come from manual clicks on one frame per cohort. For cohort 11, one Barnes geometry was clicked on `BARNES_DAY2_COHORT_11/110_Trial_1.mp4` (1078 × 716 px). `BARNES_DAY6/112.mp4` (1920 × 1080 px) and `BARNES_DAY6/112(1).mp4` (1610 × 1074 px) have different dimensions, so their Barnes metrics are excluded until the geometry is re-clicked on them.
 - Investigation in NOR is defined from two keypoints only, so the head direction is approximated by the tail-to-nose vector.
 - Interpolation is linear, so it cannot recover movement during a gap.
+- The 15 px collapse rule is applied before gaps are filled, so interpolation can produce frames where the nose and tail are closer than 15 px. In the cohort 11 trajectories this happens in 28,261 of the 203,639 frames with both keypoints present (13.88%), in 41 of 42 videos, and every such frame has at least one interpolated keypoint (the tail alone in 26,958, both in 1,303).
 
 ## How to run
 
