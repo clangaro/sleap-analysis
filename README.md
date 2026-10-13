@@ -6,7 +6,7 @@ SLEAP gives a nose and a tail position for every video frame. This repository tu
 
 ## Data
 
-Top-down videos of rats in the Barnes maze and in an NOR arena, analysed at 30 frames per second unless `--fps` says otherwise. [CAROLINA: strain, sex, cohort sizes, camera and arena details]
+**Animals and set-up.** Data come from 5 PER2::LUC mice, a circadian reporter line, recorded in the Kriegsfeld Lab at UC Berkeley. Behaviour was filmed from above in a Barnes maze and a novel object recognition arena at 30 frames per second, and body parts were tracked with SLEAP using a model trained on 302 labelled frames.
 
 Videos, predictions and the trained model are not included. The model weights are available on request.
 
