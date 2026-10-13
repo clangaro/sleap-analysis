@@ -356,6 +356,8 @@ max_gap_seconds = st.sidebar.number_input(
 )
 
 geom_path = CONFIGS / f'cohort_{cohort_id}_barnes_geometry.json'
+# Optional: Barnes videos the cohort geometry does not fit, mapped to a reason.
+exclusions_path = CONFIGS / f'cohort_{cohort_id}_barnes_exclusions.json'
 nor_geom_sidebar_path = CONFIGS / f'cohort_{cohort_id}_nor_geometry.json'
 nor_videos = list_nor_videos(project_root)
 nor_test_videos_sidebar = [v for v in nor_videos if '_novel' in v.stem.lower()]
@@ -804,6 +806,8 @@ with tab3:
             cmd_full += ['--force-reinference']
     if geom_path.exists():
         cmd_full += ['--barnes-geometry', str(geom_path)]
+    if exclusions_path.exists():
+        cmd_full += ['--barnes-exclusions', str(exclusions_path)]
     if nor_geom_sidebar_path.exists():
         cmd_full += ['--nor-geometry', str(nor_geom_sidebar_path)]
     if nor_videos:
@@ -1031,8 +1035,10 @@ with tab4:
             st.dataframe(df, use_container_width=True, hide_index=True)
             csv_download(df, 'behavioural_metrics.csv', 'Download all metrics as CSV')
 
-            # Barnes plots
+            # Barnes plots. Excluded videos stay in the table above but have no metrics to plot.
             barnes = df[df['task'] == 'barnes']
+            if 'excluded' in barnes.columns:
+                barnes = barnes[~barnes['excluded'].eq(True)]
             if not barnes.empty:
                 st.markdown('#### Barnes')
                 if 'latency_to_target_sec' in barnes.columns:

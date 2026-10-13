@@ -31,7 +31,7 @@ The pipeline was run end to end on 16 prediction files from one cohort (6 Barnes
 ## Limitations
 
 - All distances and speeds are in pixels. Nothing is converted to centimetres, so pixel thresholds need checking for each camera set-up.
-- The Barnes target zone and the NOR object positions come from manual clicks on one frame per cohort.
+- The Barnes target zone and the NOR object positions come from manual clicks on one frame per cohort. For cohort 11, one Barnes geometry was clicked on `BARNES_DAY2_COHORT_11/110_Trial_1.mp4` (1078 × 716 px). `BARNES_DAY6/112.mp4` (1920 × 1080 px) and `BARNES_DAY6/112(1).mp4` (1610 × 1074 px) have different dimensions, so their Barnes metrics are excluded until the geometry is re-clicked on them.
 - Investigation in NOR is defined from two keypoints only, so the head direction is approximated by the tail-to-nose vector.
 - Interpolation is linear, so it cannot recover movement during a gap.
 
@@ -63,6 +63,8 @@ python scripts/run_pipeline.py \
     --nor-geometry configs/cohort_12_nor_geometry.json \
     --nor-scene-dir data/cohort_12/NOR_cohort_12
 ```
+
+Add `--barnes-exclusions configs/cohort_12_barnes_exclusions.json` to exclude Barnes videos the cohort geometry does not fit. The file maps each video's path within the cohort folder to a reason, for example `{"BARNES_DAY6/112.mp4": "different frame size"}`; those videos get a metrics file with `"excluded": true` and the reason instead of metrics. The interface passes this file when it exists.
 
 Use `--pred-root` instead of `--videos-root` to skip inference when predictions already exist. Every script takes `--help`. Outputs go to `results/<cohort>/`: one cleaned trajectory CSV per video, `summary.csv` (cleaning counts), `validation_summary.csv` (speed and missingness flags), and one `.barnes_metrics.json` or `.nor_metrics.json` per video. Each JSON file records the parameters it was computed with.
 

@@ -25,9 +25,14 @@ in the middle of the target quadrant, +/- 45 deg).
 Frames are converted to seconds with the frame rate of the video the
 trajectory came from (--video, read with ffprobe), or with --fps if given.
 
+--exclude-reason marks the video as excluded: no metrics are computed and
+the output JSON records excluded=true and the reason. Use it for videos the
+cohort geometry does not fit (for example, a different frame size).
+
 Usage:
     python barnes_metrics.py --trajectory PATH.csv --geometry PATH.json \
                              --video PATH.mp4 [--fps F] [--target-radius PX]
+                             [--exclude-reason TEXT]
 """
 
 import argparse
@@ -154,12 +159,37 @@ def main():
     p.add_argument(
         '--out', default=None, help='Output JSON (default: <trajectory>.barnes_metrics.json).'
     )
+    p.add_argument(
+        '--exclude-reason',
+        default=None,
+        help='Mark this video as excluded for the given reason and compute no metrics.',
+    )
     args = p.parse_args()
+
+    out_path = (
+        Path(args.out)
+        if args.out
+        else Path(args.trajectory).with_suffix('').with_suffix('.barnes_metrics.json')
+    )
+    with open(args.geometry) as f:
+        geom = json.load(f)
+
+    if args.exclude_reason:
+        metrics = {
+            'video': Path(args.trajectory).stem,
+            'cohort': geom.get('cohort'),
+            'excluded': True,
+            'exclusion_reason': args.exclude_reason,
+        }
+        with open(out_path, 'w') as f:
+            json.dump(metrics, f, indent=2)
+        print(f'=== {metrics["video"]} (cohort {metrics["cohort"]}) EXCLUDED ===')
+        print(f'  reason: {args.exclude_reason}')
+        print(f'\nSaved: {out_path}')
+        return
 
     fps, fps_source = fps_from_args(args.fps, args.video)
     rows = load_trajectory(args.trajectory)
-    with open(args.geometry) as f:
-        geom = json.load(f)
 
     # Default target zone radius: 12% of the centre-to-target distance.
     # On our setup the maze radius is ~the centre-to-target distance, and a
@@ -189,11 +219,6 @@ def main():
     metrics['cohort'] = geom.get('cohort')
     metrics['target_hole_index'] = geom.get('target_hole_index')
 
-    out_path = (
-        Path(args.out)
-        if args.out
-        else Path(args.trajectory).with_suffix('').with_suffix('.barnes_metrics.json')
-    )
     with open(out_path, 'w') as f:
         json.dump(metrics, f, indent=2)
 

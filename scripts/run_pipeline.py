@@ -23,6 +23,11 @@ frame rate for every video instead. The video path stored in each .slp is
 used when it exists on this machine; otherwise the video is looked up by
 file name under --videos-root.
 
+--barnes-exclusions names Barnes videos the cohort geometry does not fit,
+as a JSON object mapping each video's path relative to the cohort folder to
+a reason, for example {"BARNES_DAY6/112.mp4": "different frame size"}. Their
+metrics JSON is written with excluded=true and the reason, and no metrics.
+
 Videos that have no scene JSON (NOR), no geometry passed (Barnes) or no
 frame rate are skipped from the metrics step and listed at the end. The trajectory CSVs
 and validation flags are still produced for them.
@@ -42,6 +47,7 @@ overwrite existing prediction files.
 
 import argparse
 import csv
+import json
 import os
 import subprocess
 import sys
@@ -99,6 +105,12 @@ def main():
         default=None,
         help='Cohort Barnes geometry JSON (from annotate_barnes_geometry.py). '
         'If omitted, Barnes metrics are skipped.',
+    )
+    p.add_argument(
+        '--barnes-exclusions',
+        default=None,
+        help='JSON mapping Barnes video paths (relative to the cohort folder) to '
+        'the reason they are excluded from Barnes metrics.',
     )
     p.add_argument(
         '--nor-geometry',
@@ -270,7 +282,20 @@ def main():
         video = video_by_trajectory.get(rel)
         return ['--video', video] if video else None
 
+    barnes_exclusions = {}
+    if args.barnes_exclusions:
+        with open(args.barnes_exclusions) as f:
+            barnes_exclusions = json.load(f)
+
+    def exclusion_reason(rel):
+        video = Path(video_by_trajectory.get(rel) or '').as_posix()
+        for key, reason in barnes_exclusions.items():
+            if video.endswith('/' + key.lstrip('/')):
+                return reason
+        return None
+
     skipped = []
+    excluded_barnes = []
     processed_barnes = 0
     processed_nor = 0
 
@@ -306,18 +331,21 @@ def main():
                     ('barnes', str(csv_path.relative_to(results_root)), 'no --barnes-geometry')
                 )
                 continue
-            r = subprocess.run(
-                [
-                    py,
-                    str(scripts / 'barnes_metrics.py'),
-                    '--trajectory',
-                    str(csv_path),
-                    '--geometry',
-                    str(geometry_path),
-                ]
-                + frame_rate
-            )
-            if r.returncode == 0:
+            cmd = [
+                py,
+                str(scripts / 'barnes_metrics.py'),
+                '--trajectory',
+                str(csv_path),
+                '--geometry',
+                str(geometry_path),
+            ] + frame_rate
+            reason = exclusion_reason(rel)
+            if reason:
+                cmd += ['--exclude-reason', reason]
+            r = subprocess.run(cmd)
+            if r.returncode == 0 and reason:
+                excluded_barnes.append((rel, reason))
+            elif r.returncode == 0:
                 processed_barnes += 1
             else:
                 skipped.append(
@@ -379,6 +407,10 @@ def main():
     print('=' * 70)
     print(f'Barnes metrics produced: {processed_barnes}')
     print(f'NOR    metrics produced: {processed_nor}')
+    if excluded_barnes:
+        print(f'\nExcluded {len(excluded_barnes)} Barnes video(s) (marked in their metrics JSON):')
+        for path, reason in excluded_barnes:
+            print(f'  {path}: {reason}')
     if skipped:
         print(f'\nSkipped {len(skipped)} videos (trajectory CSV still exists):')
         for cat, path, reason in skipped:
@@ -391,7 +423,7 @@ def main():
     # annotating yet.
     metrics_failed = [s for s in skipped if s[2] == 'metrics failed']
     unknown_category = [s for s in skipped if s[2] == 'unknown category']
-    trajectories_seen = processed_barnes + processed_nor + len(skipped)
+    trajectories_seen = processed_barnes + processed_nor + len(skipped) + len(excluded_barnes)
     produced = processed_barnes + processed_nor
 
     # Unknown-category videos mean a folder needs renaming. This gets its own
