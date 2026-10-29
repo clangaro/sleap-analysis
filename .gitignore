@@ -15,7 +15,8 @@ results/
 *.csv
 
 # per-cohort geometry, which records local video paths
-configs/
+configs/*
+!configs/cohort_11_barnes_exclusions.json
 
 # Python
 __pycache__/
