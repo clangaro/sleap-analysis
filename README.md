@@ -24,7 +24,7 @@ Videos, predictions and the trained model are not included. The model weights ar
 
 ## Results
 
-The pipeline was run end to end on 16 prediction files from one cohort (6 Barnes, 10 NOR), and produced metrics for all 16.
+The pipeline was run end to end on the 42 cohort 11 videos and produced metrics for 30 Barnes and 10 NOR videos. The other 2 Barnes videos (mouse 112, day 6) were excluded because the cohort geometry does not fit them.
 
 ## Limitations
 
