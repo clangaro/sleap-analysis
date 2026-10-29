@@ -26,6 +26,8 @@ Videos, predictions and the trained model are not included. The model weights ar
 
 The pipeline was run end to end on the 42 cohort 11 videos and produced metrics for 30 Barnes and 10 NOR videos. The other 2 Barnes videos (mouse 112, day 6) were excluded because the cohort geometry does not fit them.
 
+On 47 hand-labelled frames from a held-out video (cohort 11, mouse 110, Barnes day 6), the model's median error was 1.9 px for the nose and 1.7 px for the tail base, with 93% of points within 10 px (28 nose and 29 tail points scored after matching each labelled frame to the decoded video frame).
+
 ## Limitations
 
 - All distances and speeds are in pixels. Nothing is converted to centimetres, so pixel thresholds need checking for each camera set-up.
@@ -33,6 +35,7 @@ The pipeline was run end to end on the 42 cohort 11 videos and produced metrics 
 - Investigation in NOR is defined from two keypoints only, so the head direction is approximated by the tail-to-nose vector.
 - Interpolation is linear, so it cannot recover movement during a gap.
 - The 15 px collapse rule is applied before gaps are filled, so interpolation can produce frames where the nose and tail are closer than 15 px. In the cohort 11 trajectories this happens in 28,261 of the 203,639 frames with both keypoints present (13.88%), in 41 of 42 videos, and every such frame has at least one interpolated keypoint (the tail alone in 26,958, both in 1,303).
+- compare_to_truth.py matches frames by index, so on QuickTime-trimmed videos with an edit list it can pair labels with the wrong frames; accuracy above was computed with per-frame matching.
 
 ## How to run
 
