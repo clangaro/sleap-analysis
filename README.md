@@ -24,8 +24,6 @@ Videos, predictions and the trained model are not included. The model weights ar
 
 ## Results
 
-[CAROLINA: results and figures, if any are to be shown]
-
 The pipeline was run end to end on 16 prediction files from one cohort (6 Barnes, 10 NOR), and produced metrics for all 16.
 
 ## Limitations
